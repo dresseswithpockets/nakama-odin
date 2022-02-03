@@ -1,96 +1,10 @@
 package nakama
 
 import c "core:c/libc"
-import "shared:realtime"
 
 when ODIN_OS == "windows" { foreign import lib "windows/nakama.lib" }
 when ODIN_OS == "linux"   { foreign import lib "linux/nakama.lib"   }
 when ODIN_OS == "darwin"  { foreign import lib "macos/nakama.lib"   }
-
-// Constant for default port.
-// This is not a valid port, actual port will be selected automatically when this
-// value is passed.
-DefaultPort :: -1
-
-ErrorCode :: enum c.int {
-    Unknown          = 0,
-    NotFound         = 1,
-    AlreadyExists    = 1,
-    InvalidArgument  = 1,
-    Unauthenticated  = 4,
-    PermissionDenied = 5,
-    ConnectionError  = -1,
-    InternalError    = -2,
-    CancelledByUser  = -3,
-}
-
-Error :: struct {
-    message: cstring,
-    code: ErrorCode,
-}
-
-StringMap :: ^struct {
-    c: c.char,
-}
-
-// TODO(ashley): DoubleStringMap
-
-// The group role status
-UserGroupState :: enum c.int {
-    // The user is a superadmin will full control of the group.
-    Superadmin  = 0,
-    // The user is an admin with additional privileges
-    Admin       = 1,
-    // The user is a regular member
-    Member      = 2,
-    // The user has requested to join the group
-    JoinRequest = 3,
-}
-
-// The available channel types on the server
-ChannelType :: enum c.int {
-    // Default case. Assumed as Room type.
-    TypeUnspecified = 0, 
-    // A chat room which can be created dynamically with a name.
-    Room            = 1,
-    // A private chat between two users.
-    DirectMessage   = 2,
-    // A chat within a group on the server.
-    Group           = 3,
-}
-
-// Unix time in milliseconds
-// Use get_unix_timestamp_ms() to get current time
-Timestamp :: c.uint64_t
-
-// array of bytes
-Bytes :: struct {
-    bytes: ^c.uint8_t,
-    size: c.uint32_t,
-}
-
-ClientParameters :: struct {
-    server_key: cstring,
-    host:       cstring,
-    port:       i32,
-    ssl:        bool,
-}
-
-Client :: ^struct {
-    c: c.char,
-}
-
-Session :: ^struct {
-    c: c.char,
-}
-
-ClientReqData :: rawptr
-
-ClientDefaultErrorCallback :: proc(client: Client, error: ^Error)
-ClientErrorCallback        :: proc(client: Client, data: ClientReqData, error: ^Error)
-SessionCallback            :: proc(client: Client, session: Session)
-SuccessEmptyCallback       :: proc(client: Client, data: ClientReqData)
-LinkSuccessCallback        :: proc(client: Client, data: ClientReqData)
 
 @(default_calling_convention="c")
 foreign lib {
@@ -109,9 +23,19 @@ foreign lib {
     @(link_name="NStringMap_create")   string_map_create    :: proc() -> StringMap ---
     @(link_name="NStringMap_setValue") string_map_set_value :: proc(smap: StringMap, key, value: cstring) ---
     @(link_name="NStringMap_getValue") string_map_get_value :: proc(smap: StringMap, key: cstring) -> cstring ---
-    @(link_name="NStringMap_getKeys")  string_map_get_keys  :: proc(smap: StringMap, keys: ^cstring) --- // TODO(ash): what is the structure of keys? how is it terminated?
+    @(link_name="NStringMap_getKeys")  string_map_get_keys  :: proc(smap: StringMap, keys: ^cstring) ---
     @(link_name="NStringMap_getSize")  string_map_get_size  :: proc(smap: StringMap) -> c.uint16_t ---
     @(link_name="NStringMap_destroy")  string_map_destroy   :: proc(smap: StringMap) ---
+
+    /*
+     * String:Double map
+     */
+    @(link_name="NStringDoubleMap_create")   double_map_create    :: proc() -> StringDoubleMap ---
+    @(link_name="NStringDoubleMap_setValue") double_map_set_value :: proc(smap: StringDoubleMap, key, value: c.double) ---
+    @(link_name="NStringDoubleMap_getValue") double_map_get_value :: proc(smap: StringDoubleMap, key: cstring) -> c.double ---
+    @(link_name="NStringDoubleMap_getKeys")  double_map_get_keys  :: proc(smap: StringDoubleMap, keys: ^cstring) ---
+    @(link_name="NStringDoubleMap_getSize")  double_map_get_size  :: proc(smap: StringDoubleMap) -> c.uint16_t ---
+    @(link_name="NStringDoubleMap_destroy")  double_map_destroy   :: proc(smap: StringDoubleMap) ---
 
     /*
      * Timestamp
@@ -155,8 +79,8 @@ foreign lib {
     @(link_name="NClient_disconnect")       disconnect         :: proc(client: Client) ---
     @(link_name="NClient_tick")             tick               :: proc(client: Client) ---
 
-    @(link_name="NClient_createRtClient")   create_realtime_client_simple :: proc(client: Client, port: c.int32_t) -> realtime.RtClient ---
-    @(link_name="NClient_createRtClientEx") create_realtime_client_ex     :: proc(client: Client, parameters: ^RtClientParameters) -> realtime.RtClient ---
+    @(link_name="NClient_createRtClient")   create_realtime_client_simple :: proc(client: Client, port: c.int32_t) -> RtClient ---
+    @(link_name="NClient_createRtClientEx") create_realtime_client_ex     :: proc(client: Client, parameters: ^RtClientParameters) -> RtClient ---
 
     @(link_name="NClient_authenticateDevice")     authenticate_device      :: proc(client: Client, id, username: cstring, create: bool, vars: StringMap, data: ClientReqData, success: SessionCallback, error: ClientErrorCallback) ---
     @(link_name="NClient_authenticateEmail")      authenticate_email       :: proc(client: Client, email, password, username: cstring, create: bool, vars: StringMap, data: ClientReqData, success: SessionCallback, error: ClientErrorCallback) ---
@@ -231,11 +155,11 @@ foreign lib {
     @(link_name="NClient_listStorageObjects")      list_storage_objects       :: proc(client: Client, session: Session, collection: cstring, limit: c.int32_t, cursor: ^c.char, data: ClientReqData, success: proc(Client, ClientReqData, ^StorageObjectList), error: ClientErrorCallback) ---
     @(link_name="NClient_listUsersStorageObjects") list_users_storage_objects :: proc(client: Client, session: Session, collection, user_id: cstring, limit: c.int32_t, cursor: ^c.char, data: ClientReqData, success: proc(Client, ClientReqData, ^StorageObjectList), error: ClientErrorCallback) ---
     @(link_name="NClient_writeStorageObjects")     write_storage_objects      :: proc(client: Client, session: Session, objects: ^StorageObjectWrite, objects_count: c.uint16_t, data: ClientReqData, success: proc(Client, ClientReqData, ^StorageObjectAck, c.uint16_t), error: ClientErrorCallback) ---
-    @(link_name="NClient_readStorageObjects")      read_storage_objects       :: proc(client: Client, session: Session, object_ids: ^ReadStorageObjectId, object_ids_count: c.uint16_t, data: ClientReqData, success: proc(Client, ClientReqData, ^StorageObject, c.uint16_t) error: ClientErrorCallback) ---
-    @(link_name="NClient_deleteStorageObjects")    delete_storage_objects     :: proc(client: Client, session: Session, object_ids: ^DeleteStorageObjectId, object_ids_count: c.uint16_t, data: ClientReqData, success: proc(Client, ClientReqData), error: ClientErrorCallback) ---
+    @(link_name="NClient_readStorageObjects")      read_storage_objects       :: proc(client: Client, session: Session, object_ids: ^StorageObjectId, object_ids_count: c.uint16_t, data: ClientReqData, success: proc(Client, ClientReqData, ^StorageObject, c.uint16_t), error: ClientErrorCallback) ---
+    @(link_name="NClient_deleteStorageObjects")    delete_storage_objects     :: proc(client: Client, session: Session, object_ids: ^StorageObjectId, object_ids_count: c.uint16_t, data: ClientReqData, success: proc(Client, ClientReqData), error: ClientErrorCallback) ---
 
     @(link_name="NClient_rpc")               rpc               :: proc(client: Client, session: Session, id, payload: cstring, data: ClientReqData, success: proc(Client, ClientReqData, ^Rpc), error: ClientErrorCallback) ---
-    @(link_name="NClient_rpc_with_http_key") rpc_with_http_key :: proc(client: Client, session: Session, http_key, id, payload: cstring, data: ClientReqData, success: proc(Client, ClientReqdata, ^Rpc), error: ClientErrorCallback) ---
+    @(link_name="NClient_rpc_with_http_key") rpc_with_http_key :: proc(client: Client, session: Session, http_key, id, payload: cstring, data: ClientReqData, success: proc(Client, ClientReqData, ^Rpc), error: ClientErrorCallback) ---
 }
 
 create_realtime_client :: proc{create_realtime_client_simple, create_realtime_client_ex}
