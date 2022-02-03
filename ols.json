@@ -1,0 +1,26 @@
+{
+    "collections": [
+        {
+            "name": "core",
+            "path": "c:/Odin/core"
+        },
+        {
+            "name": "vendor",
+            "path": "c:/Odin/vendor"
+        },
+        {
+            "name": "shared",
+            "path": "./nakama"
+        }
+    ],
+    "thread_pool_count": 4,
+    "enable_semantic_tokens": true,
+    "enable_document_symbols": true,
+    "enable_hover": true,
+    "enable_format": false,
+    "enable_snippets": true,
+    "formatter": {
+        "tabs": false,
+        "characters": 100
+    }
+}
